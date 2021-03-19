@@ -119,6 +119,60 @@ for category in category_list:
             token_cnt_per_category[category][token] = 0  # TODO: Add smoothing
 
 
+# --------
+# Testing
+# --------
+
+predictions = []  # List of predictions
+
+# Loops through testing documents
+for doc in testing_doc_list:
+    # Gets document statistics
+    # -------------------------
+
+    doc_token_cnt = {}  # Frequency of tokens in current document
+
+    # Tokenize doc
+    tokenized_doc = word_tokenize(doc_file.read())
+
+    # Removes stop words
+    tokenized_doc = [word for word in tokenized_doc if word not in stop_words]
+
+    # Loops through words in doc
+    for token in tokenized_doc:
+        # Stems token
+        stemmed_token = Stemmer.stem(token)
+
+        # Updates token frequency in doc
+        if stemmed_token not in doc_token_cnt:
+            doc_token_cnt[stemmed_token] = 1
+        else:
+            doc_token_cnt[stemmed_token] += 1
+            
+    # Determines Category
+    # --------------------
+    
+    prediction = (0,0)  # Stores most probable category: (category, probability) 
+
+    # Loops through categories
+    for category in category_list:
+        prior_prob = log(category_priors[category])
+        conditional_prob = 0
+
+        # Calculates conditional probability for each token in doc
+        for token in doc_token_cnt.keys():
+            if token in vocabulary:
+                conditional_prob += log(category_priors[category][token]) * doc_token_cnt[token]
+
+        # Checks if category
+        prob = prior_prob + conditional_prob
+        if prob > prediction[1]:
+            prediction = (category,prob)
+
+    # Stores prediction
+    predictions.append(prediction)
+    
+
 # Gets output file name
 # out_file = input("Please enter the name of the output file.\n")
 
@@ -131,4 +185,5 @@ for category in category_list:
 #   - K folds
 #   - Don't include punctuation
 #   - Log probabilities
+#   - Move tokenization to function
 

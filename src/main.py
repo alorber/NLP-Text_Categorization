@@ -7,6 +7,7 @@ from nltk.stem import PorterStemmer
 from nltk.corpus import stopwords
 from nltk import word_tokenize
 from math import log, inf
+import numpy as np
 
 # NLTK Installs
 # nltk.download('stopwords')
@@ -75,7 +76,7 @@ def get_doc_stats(doc_list):
         tokenized_doc = word_tokenize(doc_file.read())
 
         # Removes stop words
-        tokenized_doc = [word for word in tokenized_doc if word not in stop_words]
+        tokenized_doc = [word.lower() for word in tokenized_doc if word not in stop_words and word.isalpha()]
 
         # Loops through words in doc
         for token in tokenized_doc:
@@ -112,7 +113,7 @@ def get_doc_stats(doc_list):
 
 # Calculates prior and conditional probabilities
 def get_probabilities(docs_per_category, token_cnt_per_category, total_tokens_per_category,
-                      vocabulary, category_list, num_training_docs):
+                      vocabulary, category_list, num_training_docs, smoothing_constant):
     category_priors = {}  # P(c) = # doc in c / # doc
     token_category_conditional = {}  # P(t|c) = # token t in c / total # tokens in c
                                      # { category -> {token -> P(t|c)} }
@@ -157,7 +158,7 @@ def get_predictions(rel_testing_doc_list, category_priors, token_category_condit
         tokenized_doc = word_tokenize(doc_file.read())
 
         # Removes stop words
-        tokenized_doc = [word for word in tokenized_doc if word not in stop_words]
+        tokenized_doc = [word.lower() for word in tokenized_doc if word not in stop_words and word.isalnum()]
 
         # Loops through words in doc
         for token in tokenized_doc:
@@ -233,7 +234,39 @@ def calculate_accuracy(predictions):
         else:
             incorrect += 1
 
-    print(f"Correct: {correct}\nIncorrect: {incorrect}\nAccuracy: {correct / (correct + incorrect)}\n")
+    accuracy = correct / (correct + incorrect)
+
+    # print(f"Correct: {correct}\nIncorrect: {incorrect}\nAccuracy: {accuracy}\n")
+
+    return accuracy
+
+
+# Finds best smoothing constant
+def get_best_smoothing_constant(rel_test_doc_list, doc_stats):
+    best = []  # Top 10: (smoothing constant, accuracy)
+    for smoothing_constant in np.arange(.01, .91, .01):
+        # Calculates probabilities
+        prior_probabilities, conditional_probabilities = get_probabilities(*doc_stats, smoothing_constant)
+
+        # Gets test documents predictions
+        prediction_list = get_predictions(rel_test_doc_list, prior_probabilities, conditional_probabilities,
+                                          doc_stats[3], doc_stats[4])
+
+        # Calculates Accuracy on Corpus 1
+        acc = calculate_accuracy(prediction_list)
+
+        # Checks top 10
+        best.append((smoothing_constant, acc))  # Adds to list
+        if len(best) > 10:
+            best.sort(key=lambda el: el[1], reverse=True)  # Sorts list
+            best.pop()
+
+    # Prints top 10
+    best.sort(key=lambda el: el[1], reverse=True)  # Sorts list
+    for num, item in enumerate(best, start=1):
+        print(f"{num}. Smoothing Constant: {item[0]}  -  Accuracy: {item[1]}\n")
+
+    return best
 
 
 # -----
@@ -243,7 +276,7 @@ def calculate_accuracy(predictions):
 # Constants
 stop_words = set(stopwords.words('english'))
 Stemmer = PorterStemmer()
-smoothing_constant = .07
+# smoothing_constant = .07
 
 # Processes input files
 train_doc_list, test_doc_list, rel_test_doc_list = process_input_files()
@@ -251,6 +284,9 @@ train_doc_list, test_doc_list, rel_test_doc_list = process_input_files()
 # Gets training documents statistics
 stats = get_doc_stats(train_doc_list)
 
+get_best_smoothing_constant(rel_test_doc_list, stats)
+
+'''
 # Calculates probabilities
 prior_probabilities, conditional_probabilities = get_probabilities(*stats)
 
@@ -262,6 +298,8 @@ write_to_output(test_doc_list, prediction_list)
 
 # Calculates Accuracy on Corpus 1
 calculate_accuracy(prediction_list)
+'''
+
 
 
 # Todo: Things to test

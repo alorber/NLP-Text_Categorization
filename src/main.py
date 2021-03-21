@@ -14,6 +14,7 @@ from math import log, inf
 
 stop_words = set(stopwords.words('english'))
 Stemmer = PorterStemmer()
+smoothing_constant = .07
 
 # --------------------
 # File Pre-Processing
@@ -110,13 +111,13 @@ for category in category_list:
 
     # Calculates conditional probability
     token_category_conditional[category] = {}
+    denominator = total_tokens_per_category[category] + (smoothing_constant * len(vocabulary))
     for token in vocabulary:
         # Checks if token has been seen in category
         if token in token_cnt_per_category[category].keys():
-            token_category_conditional[category][token] = token_cnt_per_category[category][token] \
-                                                          / total_tokens_per_category[category]
+            token_category_conditional[category][token] = token_cnt_per_category[category][token] / denominator
         else:
-            token_category_conditional[category][token] = .0000001  # TODO: Add smoothing
+            token_category_conditional[category][token] = smoothing_constant / denominator
 
 
 # --------
@@ -195,11 +196,16 @@ training_list_file.close()
 testing_list_file.close()
 out_file.close()
 
-# Calculate accuracy
+# Calculates accuracy
+test_answers_file_name = "../Corpus_Sets/corpus1_test.labels"
+test_answers_file = open(test_answers_file_name, 'r')
+test_answers_list = filter(lambda line: line != "", test_answers_file.read().split("\n"))  # List of non-empty lines
+test_answers_list = list(map(lambda line: line.split(" ")[1], test_answers_list))
+
 correct = 0
 incorrect = 0
-for (prediction, actual) in zip(predictions, training_doc_list):
-    if prediction == actual[1]:
+for (prediction, actual) in zip(predictions, test_answers_list):
+    if prediction == actual:
         correct += 1
     else:
         incorrect += 1

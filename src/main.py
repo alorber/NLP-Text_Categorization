@@ -6,7 +6,7 @@ import nltk
 from nltk.stem import PorterStemmer
 from nltk.corpus import stopwords
 from nltk import word_tokenize
-from math import log
+from math import log, inf
 
 # NLTK Installs
 # nltk.download('stopwords')
@@ -24,20 +24,20 @@ Stemmer = PorterStemmer()
 # testing_list_file_name = input("Please enter the name of the testing file list.\n")
 # Hardcoded for now
 training_list_file_name = "../Corpus_Sets/corpus1_train.labels"
-testing_list_file_name = "../Corpus_Sets/corpus1_test.labels"
+testing_list_file_name = "../Corpus_Sets/corpus1_test.list"
 
 # Creates list of training docs
 training_list_file = open(training_list_file_name, 'r')
 relative_training_path = "/".join(training_list_file_name.split("/")[:-1])  # Relative path of training corpus
 training_doc_list = filter(lambda line: line != "", training_list_file.read().split("\n"))   # List of non-empty lines
-training_doc_list = map(lambda doc: relative_training_path + doc[1:], training_doc_list)  # Swaps '.' with relative path
-training_doc_list = list(map(lambda doc: doc.split(" "), training_doc_list))  # Splits line into path & category
+training_doc_list = map(lambda line: relative_training_path + line[1:], training_doc_list)  # Swaps '.' with relative path
+training_doc_list = list(map(lambda line: line.split(" "), training_doc_list))  # Splits line into path & category
 
 # Create list of testing docs
 testing_list_file = open(testing_list_file_name, 'r')
 relative_testing_path = "/".join(testing_list_file_name.split("/")[:-1])  # Relative path of testing corpus
-testing_doc_list = testing_list_file.read().split("\n")   # List of lines
-testing_doc_list = map(lambda doc: relative_testing_path + doc[1:], testing_doc_list)  # Swaps '.' with relative path
+testing_doc_list = list(filter(lambda line: line != "", testing_list_file.read().split("\n")))  # List of non-empty lines
+rel_testing_doc_list = list(map(lambda line: relative_testing_path + line[1:], testing_doc_list))  # Swaps '.' with relative path
 
 # ---------
 # Training
@@ -116,7 +116,7 @@ for category in category_list:
             token_category_conditional[category][token] = token_cnt_per_category[category][token] \
                                                           / total_tokens_per_category[category]
         else:
-            token_cnt_per_category[category][token] = 0  # TODO: Add smoothing
+            token_category_conditional[category][token] = .0000001  # TODO: Add smoothing
 
 
 # --------
@@ -126,11 +126,14 @@ for category in category_list:
 predictions = []  # List of predictions
 
 # Loops through testing documents
-for doc in testing_doc_list:
+for doc_path in rel_testing_doc_list:
     # Gets document statistics
     # -------------------------
 
     doc_token_cnt = {}  # Frequency of tokens in current document
+
+    # Opens doc
+    doc_file = open(doc_path, 'r')
 
     # Tokenize doc
     tokenized_doc = word_tokenize(doc_file.read())
@@ -152,7 +155,7 @@ for doc in testing_doc_list:
     # Determines Category
     # --------------------
     
-    prediction = (0,0)  # Stores most probable category: (category, probability) 
+    prediction = ("", -inf)  # Stores most probable category: (category, probability)
 
     # Loops through categories
     for category in category_list:
@@ -162,19 +165,46 @@ for doc in testing_doc_list:
         # Calculates conditional probability for each token in doc
         for token in doc_token_cnt.keys():
             if token in vocabulary:
-                conditional_prob += log(category_priors[category][token]) * doc_token_cnt[token]
+                conditional_prob += log(token_category_conditional[category][token]) * doc_token_cnt[token]
 
         # Checks if category
         prob = prior_prob + conditional_prob
         if prob > prediction[1]:
-            prediction = (category,prob)
+            prediction = (category, prob)
 
     # Stores prediction
-    predictions.append(prediction)
+    predictions.append(prediction[0])
     
+# Write to output file
+# --------------------
 
 # Gets output file name
-# out_file = input("Please enter the name of the output file.\n")
+# out_file_name = input("Please enter the name of the output file.\n")
+out_file_name = "./out.labels"  # Hard-coded for now
+
+# Opens output file
+out_file = open(out_file_name, 'w')
+
+# Writes predictions to output file
+for (doc_path, prediction) in zip(testing_doc_list, predictions):
+    # out_file.write(f"{doc_path} {prediction}\n")
+    out_file.write(doc_path + " " + prediction + '\n')
+
+# CLoses all files
+training_list_file.close()
+testing_list_file.close()
+out_file.close()
+
+# Calculate accuracy
+correct = 0
+incorrect = 0
+for (prediction, actual) in zip(predictions, training_doc_list):
+    if prediction == actual[1]:
+        correct += 1
+    else:
+        incorrect += 1
+
+print(f"Correct: {correct}\nIncorrect: {incorrect}\nAccuracy: {correct / (correct + incorrect)}\n")
 
 
 # Todo: Things to test

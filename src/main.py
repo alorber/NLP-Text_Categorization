@@ -130,7 +130,8 @@ def get_probabilities(docs_per_category, token_cnt_per_category, total_tokens_pe
         for token in vocabulary:
             # Checks if token has been seen in category
             if token in token_cnt_per_category[category].keys():
-                token_category_conditional[category][token] = token_cnt_per_category[category][token] / denominator
+                token_category_conditional[category][token] = \
+                    (token_cnt_per_category[category][token] * smoothing_constant) / denominator
             else:
                 token_category_conditional[category][token] = smoothing_constant / denominator
 

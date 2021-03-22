@@ -9,8 +9,8 @@ from nltk import word_tokenize
 from math import log, inf
 
 # NLTK Installs
-# nltk.download('stopwords')
-# nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('punkt')
 
 
 # ------------------------------
@@ -20,11 +20,8 @@ from math import log, inf
 # Gets files from user and transforms them into usable lists
 def process_input_files():
     # Gets test & train file names
-    # training_list_file_name = input("Please enter the name of the training file list.\n")
-    # testing_list_file_name = input("Please enter the name of the testing file list.\n")
-    # Hardcoded for now
-    training_list_file_name = "../Corpus_Sets/corpus1_train.labels"
-    testing_list_file_name = "../Corpus_Sets/corpus1_test.list"
+    training_list_file_name = input("Please enter the name of the training file list.\n")
+    testing_list_file_name = input("Please enter the name of the testing file list.\n")
 
     # Creates list of training docs
     training_list_file = open(training_list_file_name, 'r')
@@ -74,8 +71,8 @@ def get_doc_stats(doc_list):
         # Tokenize doc
         tokenized_doc = word_tokenize(doc_file.read())
 
-        # Removes stop words
-        tokenized_doc = [word for word in tokenized_doc if word not in stop_words]
+        # Removes stop words and non-letter tokens
+        tokenized_doc = [word for word in tokenized_doc if word not in stop_words and word.isalpha()]
 
         # Loops through words in doc
         for token in tokenized_doc:
@@ -103,7 +100,7 @@ def get_doc_stats(doc_list):
 
     # Gets list of categories
     category_list = docs_per_category.keys()
-    # Number of training documents
+    # Gets number of training documents
     num_training_docs = sum(docs_per_category.values())
 
     return (docs_per_category, token_cnt_per_category, total_tokens_per_category,
@@ -112,7 +109,7 @@ def get_doc_stats(doc_list):
 
 # Calculates prior and conditional probabilities
 def get_probabilities(docs_per_category, token_cnt_per_category, total_tokens_per_category,
-                      vocabulary, category_list, num_training_docs):
+                      vocabulary, category_list, num_training_docs, smoothing_const):
     category_priors = {}  # P(c) = # doc in c / # doc
     token_category_conditional = {}  # P(t|c) = # token t in c / total # tokens in c
                                      # { category -> {token -> P(t|c)} }
@@ -124,13 +121,14 @@ def get_probabilities(docs_per_category, token_cnt_per_category, total_tokens_pe
 
         # Calculates conditional probability
         token_category_conditional[category] = {}
-        denominator = total_tokens_per_category[category] + (smoothing_constant * len(vocabulary))
+        denominator = total_tokens_per_category[category] + (smoothing_const * len(vocabulary))
         for token in vocabulary:
             # Checks if token has been seen in category
             if token in token_cnt_per_category[category].keys():
-                token_category_conditional[category][token] = token_cnt_per_category[category][token] / denominator
+                token_category_conditional[category][token] = \
+                    (token_cnt_per_category[category][token] + smoothing_const) / denominator
             else:
-                token_category_conditional[category][token] = smoothing_constant / denominator
+                token_category_conditional[category][token] = smoothing_const / denominator
 
     return category_priors, token_category_conditional
 
@@ -156,8 +154,8 @@ def get_predictions(rel_testing_doc_list, category_priors, token_category_condit
         # Tokenize doc
         tokenized_doc = word_tokenize(doc_file.read())
 
-        # Removes stop words
-        tokenized_doc = [word for word in tokenized_doc if word not in stop_words]
+        # Removes stop words and non-letter tokens
+        tokenized_doc = [word for word in tokenized_doc if word not in stop_words and word.isalpha()]
 
         # Loops through words in doc
         for token in tokenized_doc:
@@ -204,36 +202,14 @@ def write_to_output(testing_doc_list, predictions):
     # --------------------
 
     # Gets output file name
-    # out_file_name = input("Please enter the name of the output file.\n")
-    out_file_name = "./out.labels"  # Hard-coded for now
+    out_file_name = input("Please enter the name of the output file.\n")
 
     # Opens output file
     out_file = open(out_file_name, 'w')
 
     # Writes predictions to output file
     for (doc_path, prediction) in zip(testing_doc_list, predictions):
-        # out_file.write(f"{doc_path} {prediction}\n")
         out_file.write(doc_path + " " + prediction + '\n')
-
-
-# Calculates accuracy of predictions
-def calculate_accuracy(predictions):
-    # Calculates accuracy
-    test_answers_file_name = "../Corpus_Sets/corpus1_test.labels"
-    test_answers_file = open(test_answers_file_name, 'r')
-    test_answers_list = filter(lambda line: line != "", test_answers_file.read().split("\n"))  # List of non-empty lines
-    test_answers_list = list(map(lambda line: line.split(" ")[1], test_answers_list))
-    test_answers_file.close()
-
-    correct = 0
-    incorrect = 0
-    for (prediction, actual) in zip(predictions, test_answers_list):
-        if prediction == actual:
-            correct += 1
-        else:
-            incorrect += 1
-
-    print(f"Correct: {correct}\nIncorrect: {incorrect}\nAccuracy: {correct / (correct + incorrect)}\n")
 
 
 # -----
@@ -243,7 +219,7 @@ def calculate_accuracy(predictions):
 # Constants
 stop_words = set(stopwords.words('english'))
 Stemmer = PorterStemmer()
-smoothing_constant = .07
+smoothing_constant = .13
 
 # Processes input files
 train_doc_list, test_doc_list, rel_test_doc_list = process_input_files()
@@ -252,7 +228,7 @@ train_doc_list, test_doc_list, rel_test_doc_list = process_input_files()
 stats = get_doc_stats(train_doc_list)
 
 # Calculates probabilities
-prior_probabilities, conditional_probabilities = get_probabilities(*stats)
+prior_probabilities, conditional_probabilities = get_probabilities(*stats, smoothing_const=smoothing_constant)
 
 # Gets test documents predictions
 prediction_list = get_predictions(rel_test_doc_list, prior_probabilities, conditional_probabilities, stats[3], stats[4])
@@ -260,17 +236,4 @@ prediction_list = get_predictions(rel_test_doc_list, prior_probabilities, condit
 # Writes predictions to output file
 write_to_output(test_doc_list, prediction_list)
 
-# Calculates Accuracy on Corpus 1
-calculate_accuracy(prediction_list)
-
-
-# Todo: Things to test
-#   - Convert to lower case
-#   - Stop words COMPLETE
-#   - Lemmatization
-#   - Different smoothing methods
-#   - K folds
-#   - Don't include punctuation
-#   - Log probabilities
-#   - Move tokenization to function
 

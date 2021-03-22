@@ -211,6 +211,8 @@ def write_to_output(testing_doc_list, predictions):
     for (doc_path, prediction) in zip(testing_doc_list, predictions):
         out_file.write(doc_path + " " + prediction + '\n')
 
+    out_file.close()
+
 
 # -----
 # MAIN

@@ -8,6 +8,7 @@ from nltk.corpus import stopwords
 from nltk import word_tokenize
 from math import log, inf
 import numpy as np
+from random import shuffle
 
 # NLTK Installs
 # nltk.download('stopwords')
@@ -76,7 +77,7 @@ def get_doc_stats(doc_list):
         tokenized_doc = word_tokenize(doc_file.read())
 
         # Removes stop words
-        tokenized_doc = [word.lower() for word in tokenized_doc if word not in stop_words and word.isalpha()]
+        tokenized_doc = [word for word in tokenized_doc if word not in stop_words and word.isalpha()]
 
         # Loops through words in doc
         for token in tokenized_doc:
@@ -158,7 +159,7 @@ def get_predictions(rel_testing_doc_list, category_priors, token_category_condit
         tokenized_doc = word_tokenize(doc_file.read())
 
         # Removes stop words
-        tokenized_doc = [word.lower() for word in tokenized_doc if word not in stop_words and word.isalnum()]
+        tokenized_doc = [word for word in tokenized_doc if word not in stop_words and word.isalpha()]
 
         # Loops through words in doc
         for token in tokenized_doc:
@@ -218,13 +219,16 @@ def write_to_output(testing_doc_list, predictions):
 
 
 # Calculates accuracy of predictions
-def calculate_accuracy(predictions):
-    # Calculates accuracy
-    test_answers_file_name = "../Corpus_Sets/corpus1_test.labels"
-    test_answers_file = open(test_answers_file_name, 'r')
-    test_answers_list = filter(lambda line: line != "", test_answers_file.read().split("\n"))  # List of non-empty lines
-    test_answers_list = list(map(lambda line: line.split(" ")[1], test_answers_list))
-    test_answers_file.close()
+def calculate_accuracy(predictions, true_categories):
+    if not true_categories:
+        # Calculates accuracy
+        test_answers_file_name = "../Corpus_Sets/corpus1_test.labels"
+        test_answers_file = open(test_answers_file_name, 'r')
+        test_answers_list = filter(lambda line: line != "", test_answers_file.read().split("\n"))  # List of non-empty lines
+        test_answers_list = list(map(lambda line: line.split(" ")[1], test_answers_list))
+        test_answers_file.close()
+    else:
+        test_answers_list = true_categories
 
     correct = 0
     incorrect = 0
@@ -242,7 +246,7 @@ def calculate_accuracy(predictions):
 
 
 # Finds best smoothing constant
-def get_best_smoothing_constant(rel_test_doc_list, doc_stats):
+def get_best_smoothing_constant(rel_test_doc_list, doc_stats, true_categories):
     best = []  # Top 10: (smoothing constant, accuracy)
     for smoothing_constant in np.arange(.01, .91, .01):
         # Calculates probabilities
@@ -253,7 +257,7 @@ def get_best_smoothing_constant(rel_test_doc_list, doc_stats):
                                           doc_stats[3], doc_stats[4])
 
         # Calculates Accuracy on Corpus 1
-        acc = calculate_accuracy(prediction_list)
+        acc = calculate_accuracy(prediction_list, true_categories)
 
         # Checks top 10
         best.append((smoothing_constant, acc))  # Adds to list
@@ -269,6 +273,34 @@ def get_best_smoothing_constant(rel_test_doc_list, doc_stats):
     return best
 
 
+# Loads corpus and splits it into train and test sets
+def load_and_split_corpus(corpus_number, test_set_percentage):
+    # Gets corpus file name
+    # corpus_list_file_name = input("Please enter the name of the training file list.\n")
+    # Hardcoded for now
+    corpus_list_file_name = f"../Corpus_Sets/corpus{corpus_number}_train.labels"
+
+    # Creates list of docs
+    corpus_list_file = open(corpus_list_file_name, 'r')
+    relative_training_path = "/".join(corpus_list_file_name.split("/")[:-1])  # Relative path of corpus
+    corpus_doc_list = filter(lambda line: line != "",
+                             corpus_list_file.read().split("\n"))  # List of non-empty lines
+    corpus_doc_list = map(lambda line: relative_training_path + line[1:],
+                          corpus_doc_list)  # Swaps '.' with relative path
+    corpus_doc_list = list(map(lambda line: line.split(" "), corpus_doc_list))  # Splits line into path & category
+    corpus_list_file.close()
+
+    # Splits into testing and training sets
+    shuffle(corpus_doc_list)  # Shuffles list
+    test_set_size = int(test_set_percentage * len(corpus_doc_list))
+    train_set = corpus_doc_list[test_set_size:]
+    test_set = corpus_doc_list[:test_set_size]
+    test_doc_set = [line[0] for line in test_set]
+    test_label_set = [line[1] for line in test_set]
+
+    return train_set, test_doc_set, test_label_set
+
+
 # -----
 # MAIN
 # -----
@@ -278,13 +310,39 @@ stop_words = set(stopwords.words('english'))
 Stemmer = PorterStemmer()
 # smoothing_constant = .07
 
+# Corpus 1
+# ---------
+print("\nCORPUS 1\n----------\n")
+
 # Processes input files
 train_doc_list, test_doc_list, rel_test_doc_list = process_input_files()
 
 # Gets training documents statistics
 stats = get_doc_stats(train_doc_list)
 
-get_best_smoothing_constant(rel_test_doc_list, stats)
+get_best_smoothing_constant(rel_test_doc_list, stats, False)
+
+# Corpus 2
+# ---------
+print("\nCORPUS 2\n----------\n")
+
+train_doc_list, rel_test_doc_list, test_true_categories = load_and_split_corpus('2', .25)
+
+# Gets training documents statistics
+stats = get_doc_stats(train_doc_list)
+
+get_best_smoothing_constant(rel_test_doc_list, stats, test_true_categories)
+
+# Corpus 3
+# ---------
+print("\nCORPUS 3\n----------\n")
+
+train_doc_list, rel_test_doc_list, test_true_categories = load_and_split_corpus('3', .25)
+
+# Gets training documents statistics
+stats = get_doc_stats(train_doc_list)
+
+get_best_smoothing_constant(rel_test_doc_list, stats, test_true_categories)
 
 '''
 # Calculates probabilities
